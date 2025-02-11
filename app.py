@@ -1,5 +1,5 @@
-from flask import Flask, render_template, request, jsonify, send_file
-import pandas as pd
+from flask import Flask, render_template, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import qrcode
 from io import BytesIO
@@ -8,15 +8,29 @@ import os
 
 app = Flask(__name__, template_folder='.')  # Set template folder to current directory
 
-EXCEL_FILE = 'travel_log.xlsx'
+# Configure database (Use PostgreSQL in production, SQLite for local testing)
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///travel_log.db")
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# Create Excel file if it doesn't exist
-if not os.path.exists(EXCEL_FILE):
-    df = pd.DataFrame(columns=[
-        'Date', 'Source', 'Destination', 'Start_KM', 'End_KM',
-        'Start_Time', 'End_Time', 'KM_Covered', 'Time_Taken'
-    ])
-    df.to_excel(EXCEL_FILE, index=False)
+db = SQLAlchemy(app)
+
+# Define the database model
+class TravelLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(10), nullable=False)
+    source = db.Column(db.String(100), nullable=False)
+    destination = db.Column(db.String(100), nullable=False)
+    start_km = db.Column(db.Float, nullable=False)
+    end_km = db.Column(db.Float, nullable=False)
+    start_time = db.Column(db.String(5), nullable=False)
+    end_time = db.Column(db.String(5), nullable=False)
+    km_covered = db.Column(db.Float, nullable=False)
+    time_taken = db.Column(db.String(10), nullable=False)
+
+# Create the database tables (Only runs once at startup)
+with app.app_context():
+    db.create_all()
 
 @app.route('/')
 def home():
@@ -52,21 +66,20 @@ def submit():
     end_time = datetime.strptime(data['end_time'], '%H:%M')
     time_taken = str(end_time - start_time)
     
-    new_row = {
-        'Date': data['date'],
-        'Source': data['source'],
-        'Destination': data['destination'],
-        'Start_KM': data['start_km'],
-        'End_KM': data['end_km'],
-        'Start_Time': data['start_time'],
-        'End_Time': data['end_time'],
-        'KM_Covered': km_covered,
-        'Time_Taken': time_taken
-    }
+    new_entry = TravelLog(
+        date=data['date'],
+        source=data['source'],
+        destination=data['destination'],
+        start_km=data['start_km'],
+        end_km=data['end_km'],
+        start_time=data['start_time'],
+        end_time=data['end_time'],
+        km_covered=km_covered,
+        time_taken=time_taken
+    )
     
-    df = pd.read_excel(EXCEL_FILE)
-    df = df._append(new_row, ignore_index=True)
-    df.to_excel(EXCEL_FILE, index=False)
+    db.session.add(new_entry)
+    db.session.commit()
     
     return jsonify({'success': True})
 
