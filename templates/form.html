@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Travel Form</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; }
+        input { width: 100%; padding: 8px; }
+        button { padding: 10px 20px; background: #007bff; color: white; border: none; cursor: pointer; }
+        #reader { 
+            margin-bottom: 20px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #ddd;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        #travelForm {
+            background: white;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="reader"></div>
+    <div id="message"></div>
+    
+    <form id="travelForm">
+        <div class="form-group">
+            <label>Date:</label>
+            <input type="date" id="date" required>
+        </div>
+        <div class="form-group">
+            <label>Source:</label>
+            <input type="text" id="source" required>
+        </div>
+        <div class="form-group">
+            <label>Destination:</label>
+            <input type="text" id="destination" required>
+        </div>
+        <div class="form-group">
+            <label>Start KM:</label>
+            <input type="number" id="start_km" required>
+        </div>
+        <div class="form-group">
+            <label>End KM:</label>
+            <input type="number" id="end_km" required>
+        </div>
+        <div class="form-group">
+            <label>Start Time:</label>
+            <input type="time" id="start_time" required>
+        </div>
+        <div class="form-group">
+            <label>End Time:</label>
+            <input type="time" id="end_time" required>
+        </div>
+        <button type="submit">Submit</button>
+    </form>
+
+    <script>
+        // Initialize QR Scanner with error handling
+        function initializeQRScanner() {
+            try {
+                const html5QrcodeScanner = new Html5Qrcode("reader");
+                const qrConfig = { fps: 10, qrbox: { width: 250, height: 250 } };
+                
+                html5QrcodeScanner.start(
+                    { facingMode: "environment" }, 
+                    qrConfig,
+                    qrCodeMessage => {
+                        document.getElementById('message').innerHTML = 
+                            `<p class="success">QR Code scanned: ${qrCodeMessage}</p>`;
+                        html5QrcodeScanner.stop();
+                    },
+                    error => {
+                        console.warn(`QR Code error: ${error}`);
+                    }
+                ).catch(err => {
+                    document.getElementById('message').innerHTML = 
+                        `<p class="error">Camera initialization failed. Please ensure camera permissions are granted.</p>`;
+                });
+            } catch (error) {
+                document.getElementById('message').innerHTML = 
+                    `<p class="error">QR Scanner initialization failed: ${error.message}</p>`;
+            }
+        }
+
+        // Initialize scanner when page loads
+        window.onload = initializeQRScanner;
+
+        // Form submission
+        document.getElementById('travelForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const formData = {
+                date: document.getElementById('date').value,
+                source: document.getElementById('source').value,
+                destination: document.getElementById('destination').value,
+                start_km: document.getElementById('start_km').value,
+                end_km: document.getElementById('end_km').value,
+                start_time: document.getElementById('start_time').value,
+                end_time: document.getElementById('end_time').value
+            };
+
+            try {
+                const response = await fetch('/submit', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    document.getElementById('message').innerHTML = 
+                        '<p class="success">Data saved successfully!</p>';
+                    e.target.reset();
+                } else {
+                    throw new Error('Submission failed');
+                }
+            } catch (error) {
+                document.getElementById('message').innerHTML = 
+                    `<p class="error">Error: ${error.message}</p>`;
+            }
+        };
+    </script>
+</body>
+</html>
