@@ -6,7 +6,7 @@ from io import BytesIO
 import base64
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.')  # Set template folder to current directory
 
 EXCEL_FILE = 'travel_log.xlsx'
 
