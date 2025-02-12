@@ -1,26 +1,36 @@
 from flask import Flask, render_template, request, jsonify
-import firebase_admin
-from firebase_admin import credentials, firestore
-import os
-import json
+from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import qrcode
 from io import BytesIO
 import base64
+import os
 
 app = Flask(__name__, template_folder='.')
 
-# Load Firebase credentials from environment variable
-firebase_key_json = os.getenv('FIREBASE_KEY')  # Get the key from Render
-if not firebase_key_json:
-    raise ValueError("FIREBASE_KEY environment variable not set")
+# PostgreSQL Configuration (Replace with your actual Render DB URL)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "postgresql://drivelog_ofqs_user:ETCPJV5ZOVcOCujRT82edgPKoLyAmEr2@dpg-cumc4bggph6c73df01eg-a/drivelog_ofqs")
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-firebase_key = json.loads(firebase_key_json)  # Convert JSON string to dictionary
-cred = credentials.Certificate(firebase_key)  # Use credentials from env variable
-firebase_admin.initialize_app(cred)
+# Initialize Database
+db = SQLAlchemy(app)
 
-db = firestore.client()
-collection = db.collection('travel_log')  # Collection name in Firestore
+# Define Database Model
+class TravelLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(10), nullable=False)
+    source = db.Column(db.String(255), nullable=False)
+    destination = db.Column(db.String(255), nullable=False)
+    start_km = db.Column(db.Float, nullable=False)
+    end_km = db.Column(db.Float, nullable=False)
+    km_covered = db.Column(db.Float, nullable=False)
+    start_time = db.Column(db.String(5), nullable=False)
+    end_time = db.Column(db.String(5), nullable=False)
+    time_taken = db.Column(db.String(20), nullable=False)
+
+# Create tables
+with app.app_context():
+    db.create_all()
 
 @app.route('/')
 def home():
@@ -47,35 +57,46 @@ def show_form():
 @app.route('/submit', methods=['POST'])
 def submit():
     data = request.json
-    
-    # Calculate KM covered
+
     km_covered = float(data['end_km']) - float(data['start_km'])
     
-    # Calculate time taken
     start_time = datetime.strptime(data['start_time'], '%H:%M')
     end_time = datetime.strptime(data['end_time'], '%H:%M')
     time_taken = str(end_time - start_time)
+
+    new_entry = TravelLog(
+        date=data['date'],
+        source=data['source'],
+        destination=data['destination'],
+        start_km=float(data['start_km']),
+        end_km=float(data['end_km']),
+        km_covered=km_covered,
+        start_time=data['start_time'],
+        end_time=data['end_time'],
+        time_taken=time_taken
+    )
     
-    new_entry = {
-        "date": data['date'],
-        "source": data['source'],
-        "destination": data['destination'],
-        "start_km": float(data['start_km']),
-        "end_km": float(data['end_km']),
-        "km_covered": km_covered,
-        "start_time": data['start_time'],
-        "end_time": data['end_time'],
-        "time_taken": time_taken
-    }
-    
-    collection.add(new_entry)  # Add data to Firestore
-    
+    db.session.add(new_entry)
+    db.session.commit()
+
     return jsonify({"success": True, "message": "Data saved successfully!"})
 
 @app.route('/view_data')
 def view_data():
-    docs = collection.stream()  # Get all documents from the collection
-    data = [doc.to_dict() for doc in docs]  # Convert documents to dictionaries
+    entries = TravelLog.query.all()
+    data = [
+        {
+            "date": entry.date,
+            "source": entry.source,
+            "destination": entry.destination,
+            "start_km": entry.start_km,
+            "end_km": entry.end_km,
+            "km_covered": entry.km_covered,
+            "start_time": entry.start_time,
+            "end_time": entry.end_time,
+            "time_taken": entry.time_taken
+        } for entry in entries
+    ]
     return jsonify(data)
 
 if __name__ == '__main__':
