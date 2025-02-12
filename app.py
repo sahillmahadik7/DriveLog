@@ -2,6 +2,7 @@ from flask import Flask, render_template, request, jsonify
 import firebase_admin
 from firebase_admin import credentials, firestore
 import os
+import json
 from datetime import datetime
 import qrcode
 from io import BytesIO
@@ -9,9 +10,15 @@ import base64
 
 app = Flask(__name__, template_folder='.')
 
-# Initialize Firebase
-cred = credentials.Certificate('path/to/your/serviceAccountKey.json')  # You'll need to add your Firebase credentials file
+# Load Firebase credentials from environment variable
+firebase_key_json = os.getenv('FIREBASE_KEY')  # Get the key from Render
+if not firebase_key_json:
+    raise ValueError("FIREBASE_KEY environment variable not set")
+
+firebase_key = json.loads(firebase_key_json)  # Convert JSON string to dictionary
+cred = credentials.Certificate(firebase_key)  # Use credentials from env variable
 firebase_admin.initialize_app(cred)
+
 db = firestore.client()
 collection = db.collection('travel_log')  # Collection name in Firestore
 
