@@ -1,15 +1,19 @@
+import os
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import qrcode
 from io import BytesIO
 import base64
-import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env (only for local development)
+load_dotenv()
 
 app = Flask(__name__, template_folder='.')
 
-# PostgreSQL Configuration (Replace with your actual Render DB URL)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL", "postgresql://drivelog_ofqs_user:ETCPJV5ZOVcOCujRT82edgPKoLyAmEr2@dpg-cumc4bggph6c73df01eg-a/drivelog_ofqs")
+# Use DATABASE_URL from environment variables (Render provides this automatically)
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv("DATABASE_URL")
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize Database
@@ -28,7 +32,7 @@ class TravelLog(db.Model):
     end_time = db.Column(db.String(5), nullable=False)
     time_taken = db.Column(db.String(20), nullable=False)
 
-# Create tables
+# Create tables if they don’t exist
 with app.app_context():
     db.create_all()
 
